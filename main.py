@@ -14,6 +14,18 @@ EXCUSE = "No. At 3 AM I don't sign anything \u2014 my only job is standing betwe
 MAX_CHARS = 200
 
 
+def verify_output(path: str, line: str) -> None:
+    """Prove the written entry is exactly the line plus one newline."""
+    with open(path, "rb") as f:
+        written = f.read()
+    expected = (line + "\n").encode("utf-8")
+    if written != expected:
+        raise ValueError(
+            f"output {path} ({len(written)} bytes) does not match "
+            f"the excuse ({len(expected)} bytes)"
+        )
+
+
 def main() -> int:
     line = EXCUSE
     if not line or line != line.strip():
@@ -32,8 +44,17 @@ def main() -> int:
     output_dir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "entry.txt")
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(line + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, path)
+    try:
+        verify_output(path, line)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     print(line)
     return 0
 
